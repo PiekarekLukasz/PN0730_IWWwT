@@ -1,6 +1,9 @@
 ﻿  Compiling CUDA source file kernel.cu...
   
   C:\Users\Łukasz\source\repos\PiekarekLukasz\PN0730_IWWwT\GPU\WyszukiwarkaCUDA1>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.25.28610\bin\HostX86\x64" -x cu   -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\include"  -G   --keep-dir x64\Debug  -maxrregcount=0  --machine 64 --compile -cudart static  -g  -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc142.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\kernel.cu.obj "C:\Users\Łukasz\source\repos\PiekarekLukasz\PN0730_IWWwT\GPU\WyszukiwarkaCUDA1\kernel.cu" 
+C:\Users\úukasz\source\repos\PiekarekLukasz\PN0730_IWWwT\GPU\WyszukiwarkaCUDA1\kernel.cu(118): warning #177-D: variable "word_lenght" was declared but never referenced
+  
   kernel.cu
-C:\Users\Łukasz\source\repos\PiekarekLukasz\PN0730_IWWwT\GPU\WyszukiwarkaCUDA1\kernel.cu(106): warning C4267: "=": konwersja z "size_t" do "int", możliwa utrata danych
+C:\Users\Łukasz\source\repos\PiekarekLukasz\PN0730_IWWwT\GPU\WyszukiwarkaCUDA1\kernel.cu(118): warning C4101: "word_lenght": lokalna zmienna, do której nie istnieje odwołanie
+C:\Users\Łukasz\source\repos\PiekarekLukasz\PN0730_IWWwT\GPU\WyszukiwarkaCUDA1\kernel.cu(140): warning C4267: "inicjowanie": konwersja z "size_t" do "unsigned int", możliwa utrata danych
   WyszukiwarkaCUDA1.vcxproj -> C:\Users\Łukasz\Source\Repos\PiekarekLukasz\PN0730_IWWwT\GPU\x64\Debug\WyszukiwarkaCUDA1.exe
