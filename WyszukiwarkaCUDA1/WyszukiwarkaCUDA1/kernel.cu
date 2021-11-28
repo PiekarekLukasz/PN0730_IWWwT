@@ -7,33 +7,36 @@
 #include <string.h>
 #include <windows.h>
 #include <vector>
-#include <algorithm> 
 
-#define CHUNK_SIZE 512
+#define BASE_CHUNK_SIZE 1024  // tego proszę nie zmieniać 
+#define CHUNK_SIZE_MULTIPLIER 32 // to kręcić jak dusza zapragnie (od 1 do 2^32 czy coś)
+#define CHUNK_SIZE (BASE_CHUNK_SIZE*CHUNK_SIZE_MULTIPLIER)  // tego też nie dodykać, twarda definicja
+
 #define MAX_WORD_LENGHT 64
 #define MAX_PATH_LENGHT 300
 
-cudaError_t searchFileWithCuda(const char* analyze, const char* word, int* result, unsigned int size, unsigned int word_lenght);
+cudaError_t searchFileWithCuda(std::vector<char*> analyze, const char* word, std::vector<int*>& result, unsigned int word_lenght);
 
-__global__ void searchKernel(const char* analyze, const char* word, int* result, unsigned int size, unsigned int word_lenght)
+__global__ void searchKernel(const char* analyze, const char* word, int* result, unsigned int word_lenght)
 {
+    int x = blockIdx.x;
     int i = threadIdx.x;
-    if (i < size - word_lenght)
+    if (i < CHUNK_SIZE - word_lenght)
     {
-            int j;
-            bool found = true;
-            for (j = 0; j < word_lenght; j++)
-            {
-                if (analyze[i + j] != word[j]) found = false;
-            }
-            if (found)
-            {
-                result[i] = 1;
-            }
+        int j;
+        bool found = true;
+        for (j = 0; j < word_lenght; j++)
+        {
+            if (analyze[(BASE_CHUNK_SIZE * x) + i + j] != word[j]) found = false;
+        }
+        if (found)
+        {
+            result[(BASE_CHUNK_SIZE * x) + i] = 1;
+        }
     }
 }
 
-int readFiletoBuffer(char const* path, std::vector<char*> &chunks)
+int readFiletoBuffer(char const* path, std::vector<char*>& chunks)
 {
 
     FILE* f = fopen(path, "rb");
@@ -44,18 +47,18 @@ int readFiletoBuffer(char const* path, std::vector<char*> &chunks)
     while (fsize > 0)
     {
         long size_to_read = CHUNK_SIZE < fsize ? CHUNK_SIZE : fsize;
-        int rollback = (-MAX_WORD_LENGHT / 2) - 1;
+        int rollback = -MAX_WORD_LENGHT;
 
         char* contents = (char*)calloc(CHUNK_SIZE, sizeof(char));
         fread(contents, 1, size_to_read - 1, f);
 
-        contents[size_to_read-1] = '\0';
+        contents[size_to_read - 1] = '\0';
         chunks.push_back(contents);
 
         fseek(f, rollback, SEEK_CUR);
-        fsize -= (CHUNK_SIZE + rollback);
+        fsize -= (CHUNK_SIZE + rollback - 1);
     }
-    
+
 
     fclose(f);
 
@@ -110,26 +113,20 @@ int main()
         printf("FILE: %s \n", file);
         std::vector<char*> chunks;
         readFiletoBuffer(file, chunks);
-        for (char* contents : chunks)
-        {           
-            //printf("CHUNK: \n %s \n", contents); //wypisanie zawartosci plikow do testowania
-            int* result_array = (int*)calloc(CHUNK_SIZE, sizeof(int));
+        std::vector<int*> results;
 
-            cudaError_t cudaStatus = searchFileWithCuda(contents, word, result_array, CHUNK_SIZE, word_lenght);
-            if (cudaStatus != cudaSuccess) {
-                fprintf(stderr, "addWithCuda failed!");
-                return 1;
-            }
+        cudaError_t cudaStatus = searchFileWithCuda(chunks, word, results, word_lenght);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "addWithCuda failed!");
+            return 1;
+        }
 
 
-            for (int i = 0; i < CHUNK_SIZE; i++)
-            {
-                if (result_array[i] == 1) printf("Hit on pos: %d \n", pos_shift+i);
-            }
-
-            pos_shift += (CHUNK_SIZE + (-MAX_WORD_LENGHT / 2) - 1);
-            free(result_array);
-            free(contents);
+        for (int* result : results)
+        {
+            for (int i = 0; i < CHUNK_SIZE; i++) if (result[i] == 1) printf("Hit on pos: %d \n", pos_shift + i);
+            pos_shift += (CHUNK_SIZE - MAX_WORD_LENGHT - 1);
+            free(result);
         }
 
         free(file);
@@ -140,11 +137,11 @@ int main()
 }
 
 // Helper function for using CUDA to add vectors in parallel.
-cudaError_t searchFileWithCuda(const char* analyze, const char *word, int *result, unsigned int size, unsigned int word_lenght)
+cudaError_t searchFileWithCuda(std::vector<char*> analyze, const char* word, std::vector<int*>& result, unsigned int word_lenght)
 {
-    char *internal_analyze = 0;
-    int *internal_result = 0;
-    char *Internal_word = 0;
+    char* internal_analyze = 0;
+    int* internal_result = 0;
+    char* Internal_word = 0;
     cudaError_t cudaStatus;
 
     // Choose which GPU to run on, change this on a multi-GPU system.
@@ -155,13 +152,13 @@ cudaError_t searchFileWithCuda(const char* analyze, const char *word, int *resul
     }
 
     // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMalloc((void**)&internal_result, size * sizeof(int));
+    cudaStatus = cudaMalloc((void**)&internal_result, CHUNK_SIZE * sizeof(int));
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMalloc failed!");
         goto Error;
     }
 
-    cudaStatus = cudaMalloc((void**)&internal_analyze, size * sizeof(char));
+    cudaStatus = cudaMalloc((void**)&internal_analyze, CHUNK_SIZE * sizeof(char));
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMalloc failed!");
         goto Error;
@@ -174,53 +171,64 @@ cudaError_t searchFileWithCuda(const char* analyze, const char *word, int *resul
     }
 
     // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(internal_analyze, analyze, size * sizeof(char), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed! first");
-        goto Error;
-    }
-
-    cudaStatus = cudaMemcpy(internal_result, result, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed! second");
-        goto Error;
-    }
-
     cudaStatus = cudaMemcpy(Internal_word, word, word_lenght * sizeof(char), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMemcpy failed! third");
         goto Error;
     }
 
-    // Launch a kernel on the GPU with one thread for each element.
-    searchKernel <<<1, CHUNK_SIZE>>>(internal_analyze, Internal_word, internal_result, size, word_lenght);
 
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        goto Error;
-    }
-    
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        goto Error;
+    for (char* contents : analyze)
+    {
+        cudaStatus = cudaMemcpy(internal_analyze, contents, CHUNK_SIZE * sizeof(char), cudaMemcpyHostToDevice);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "cudaMemcpy failed! first");
+            goto Error;
+        }
+
+        cudaStatus = cudaMemset(internal_result, 0, CHUNK_SIZE * sizeof(int));
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "cudaMemcpy failed! second");
+            goto Error;
+        }
+
+        // Launch a kernel on the GPU with one thread for each element.
+        searchKernel << < CHUNK_SIZE_MULTIPLIER, BASE_CHUNK_SIZE >> > (internal_analyze, Internal_word, internal_result, word_lenght);
+
+        free(contents);
+
+        // Check for any errors launching the kernel
+        cudaStatus = cudaGetLastError();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+            goto Error;
+        }
+
+        // cudaDeviceSynchronize waits for the kernel to finish, and returns
+        // any errors encountered during the launch.
+        cudaStatus = cudaDeviceSynchronize();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+            goto Error;
+        }
+
+        int* partial_result = (int*)calloc(CHUNK_SIZE, sizeof(int));
+
+        // Copy output vector from GPU buffer to host memory.
+        cudaStatus = cudaMemcpy(partial_result, internal_result, CHUNK_SIZE * sizeof(int), cudaMemcpyDeviceToHost);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "cudaMemcpy failed!");
+            goto Error;
+        }
+
+        result.push_back(partial_result);
     }
 
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(result, internal_result, size * sizeof(int), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
 
 Error:
     cudaFree(Internal_word);
     cudaFree(internal_analyze);
     cudaFree(internal_result);
-    
+
     return cudaStatus;
 }
