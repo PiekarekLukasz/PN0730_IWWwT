@@ -9,7 +9,7 @@
 #include <vector>
 
 #define BASE_CHUNK_SIZE 1024  // tego proszę nie zmieniać 
-#define CHUNK_SIZE_MULTIPLIER 32 // to kręcić jak dusza zapragnie (od 1 do 2^32 czy coś)
+#define CHUNK_SIZE_MULTIPLIER 16 // to kręcić jak dusza zapragnie (od 1 do 2^32 czy coś)
 #define CHUNK_SIZE (BASE_CHUNK_SIZE*CHUNK_SIZE_MULTIPLIER)  // tego też nie dodykać, twarda definicja
 
 #define MAX_WORD_LENGHT 64
