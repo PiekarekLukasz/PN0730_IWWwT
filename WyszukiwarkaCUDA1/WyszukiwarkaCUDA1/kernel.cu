@@ -117,7 +117,7 @@ int main()
 
         cudaError_t cudaStatus = searchFileWithCuda(chunks, word, results, word_lenght);
         if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "addWithCuda failed!");
+            fprintf(stderr, "searchFileWithCuda failed!");
             return 1;
         }
 
@@ -136,7 +136,6 @@ int main()
     return 0;
 }
 
-// Helper function for using CUDA to add vectors in parallel.
 cudaError_t searchFileWithCuda(std::vector<char*> analyze, const char* word, std::vector<int*>& result, unsigned int word_lenght)
 {
     char* internal_analyze = 0;
