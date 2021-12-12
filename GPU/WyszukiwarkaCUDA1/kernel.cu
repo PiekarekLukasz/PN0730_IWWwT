@@ -18,8 +18,8 @@
 #define MAX_WORD_LENGHT 64
 #define MAX_PATH_LENGHT 300
 
-cudaError_t searchDirectoryWithCuda(const char* path, const char* word, 
-                                    std::vector<std::tuple<char*, std::set<int>>> & files_and_hits);
+cudaError_t searchDirectoryWithCuda(const char* path, const char* word,
+    std::vector<std::tuple<char*, std::set<int>>>& files_and_hits);
 
 __global__ void searchKernel(const char* analyze, const char* word, int* result, unsigned int word_lenght)
 {
@@ -96,7 +96,7 @@ int printResults(std::vector<std::tuple<char*, std::set<int>>>& files_and_hits)
 
         if (std::get<1>(file_hits).size() == 0) printf("None found! \n");
         else for (int result : std::get<1>(file_hits)) printf("Hit on pos: %d \n", result);
-       
+
         printf("\n");
 
         free(std::get<0>(file_hits));
@@ -107,23 +107,23 @@ int printResults(std::vector<std::tuple<char*, std::set<int>>>& files_and_hits)
 int main()
 {
     std::vector<
-        std::tuple< 
-                char*, std::set<int>
-        > 
+        std::tuple<
+        char*, std::set<int>
+        >
     >  files_and_hits;
 
     char word[MAX_WORD_LENGHT];
     char path[MAX_PATH_LENGHT];
     int word_lenght;
-  
+
     printf("Path to the folder to be searched: \n");
     scanf("%s", path);
     printf("Word to be searched for: \n");
     scanf("%s", word);
 
     cudaError_t cudaStatus = searchDirectoryWithCuda(path, word, files_and_hits);
-    if (cudaStatus != cudaSuccess) { 
-        fprintf(stderr, "searchFileWithCuda failed!"); 
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "searchFileWithCuda failed!");
         return 1;
     }
 
@@ -132,8 +132,8 @@ int main()
     return 0;
 }
 
-cudaError_t searchDirectoryWithCuda(const char* path, const char* word, 
-                                    std::vector<std::tuple<char*, std::set<int>>> & files_and_hits)
+cudaError_t searchDirectoryWithCuda(const char* path, const char* word,
+    std::vector<std::tuple<char*, std::set<int>>>& files_and_hits)
 {
     std::vector<char*> files;
     unsigned int word_lenght = strlen(word);
@@ -145,7 +145,7 @@ cudaError_t searchDirectoryWithCuda(const char* path, const char* word,
 
     cudaError_t cudaStatus;
 
-    if(findAllFilesInDir(path, files)) {
+    if (findAllFilesInDir(path, files)) {
         printf("Invalid folder path! \n");
         cudaStatus = cudaErrorFileNotFound;
         goto Error;
@@ -206,7 +206,7 @@ cudaError_t searchDirectoryWithCuda(const char* path, const char* word,
             }
 
             // Launch a kernel on the GPU with one thread for each element.
-            searchKernel <<< CHUNK_SIZE_MULTIPLIER, BASE_CHUNK_SIZE >>> (internal_analyze, Internal_word, internal_result, word_lenght);
+            searchKernel << < CHUNK_SIZE_MULTIPLIER, BASE_CHUNK_SIZE >> > (internal_analyze, Internal_word, internal_result, word_lenght);
 
             free(contents);
 
@@ -237,7 +237,7 @@ cudaError_t searchDirectoryWithCuda(const char* path, const char* word,
             pos_shift += (CHUNK_SIZE - MAX_WORD_LENGHT - 1);
 
         }
-        files_and_hits.push_back( std::make_tuple(file, results));
+        files_and_hits.push_back(std::make_tuple(file, results));
     }
 
 Error:
