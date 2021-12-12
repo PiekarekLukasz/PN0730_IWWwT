@@ -67,22 +67,44 @@ int readFiletoBuffer(char const* path, std::vector<char*>& chunks)
     return fsize;
 }
 
+bool isTxtFile(char const* filename)
+{
+    int fnLen = strlen(filename);
+    if (fnLen < 5) return false;
+    char fExtension[5];
+    strncpy(fExtension, filename + fnLen - 4, 4);
+    fExtension[4] = '\0';
+    return strcmp(fExtension, ".txt") == 0 ? true : false;
+}
+
 int findAllFilesInDir(char const* path, std::vector<char*>& files)
 {
     char expandedpath[MAX_PATH_LENGHT];
     strcpy(expandedpath, path);
-    strcat(expandedpath, "\\*.txt");
+    strcat(expandedpath, "\\*");
 
     WIN32_FIND_DATA data;
     HANDLE hFIND = FindFirstFile(expandedpath, &data);
 
     if (hFIND == INVALID_HANDLE_VALUE) return 1;
     do {
-        char* fullpath = (char*)calloc(MAX_PATH_LENGHT, sizeof(char));
-        strcpy(fullpath, path);
-        strcat(fullpath, "\\");
-        strcat(fullpath, data.cFileName);
-        files.push_back(fullpath);
+        if (((data.dwFileAttributes | FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY) && (data.cFileName[0] != '.'))
+        {
+            char* fullpath = (char*)calloc(MAX_PATH_LENGHT, sizeof(char));
+            strcpy(fullpath, path);
+            strcat(fullpath, "\\");
+            strcat(fullpath, data.cFileName);
+            findAllFilesInDir(fullpath, files);
+            free(fullpath);
+        }
+        else if (isTxtFile(data.cFileName))
+        {
+            char* fullpath = (char*)calloc(MAX_PATH_LENGHT, sizeof(char));
+            strcpy(fullpath, path);
+            strcat(fullpath, "\\");
+            strcat(fullpath, data.cFileName);
+            files.push_back(fullpath);
+        }
     } while (FindNextFile(hFIND, &data));
 
     return 0;
@@ -120,6 +142,7 @@ int main()
     scanf("%s", path);
     printf("Word to be searched for: \n");
     scanf("%s", word);
+    printf("\n|====|Search resutls|====|\n\n");
 
     cudaError_t cudaStatus = searchDirectoryWithCuda(path, word, files_and_hits);
     if (cudaStatus != cudaSuccess) {
